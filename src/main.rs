@@ -118,7 +118,11 @@ fn encrypt(filepath: &PathBuf, key: &GcmKey, nonce: &GcmNonce) {
     };
 }
 
-fn decrypt(filepath: &PathBuf, key: &str) {
+fn decrypt(mut filepath: PathBuf, key: &str) {
+    if !filepath.exists() {
+        let trypath = PathBuf::from(format!("{}.alp", filepath.display()));
+        filepath = trypath;
+    }
     let creds: Vec<&str> = key.split('#').collect();
     let key = hex::decode(creds[0]).expect("Malformed key");
     let nonce = hex::decode(creds[1]).expect("Malformed key(nonce)");
@@ -126,7 +130,7 @@ fn decrypt(filepath: &PathBuf, key: &str) {
 
     let cipher = Aes128Gcm::new_from_slice(&key).expect("Failed to initialize cipher");
 
-    let input = std::fs::read(filepath).expect("Error reading input file");
+    let input = std::fs::read(&filepath).expect("Error reading input file");
 
     let input = gzip(&input, GzipMode::Decompress);
     let plainbytes = cipher
@@ -161,10 +165,6 @@ fn main() {
 
     match arguments {
         Args::Encrypt { filepath } => {
-            if !filepath.exists() {
-                panic!("Specified file does not exist.");
-            }
-
             let key = aes_gcm::Aes128Gcm::generate_key(OsRng);
             let nonce = aes_gcm::Aes128Gcm::generate_nonce(OsRng);
 
@@ -172,11 +172,7 @@ fn main() {
             println!("Done.\nKey: {}#{}", hex::encode(key), hex::encode(nonce));
         }
         Args::Decrypt { key, filepath } => {
-            if !filepath.exists() {
-                panic!("Specified file does not exist.");
-            }
-
-            decrypt(&filepath, &key);
+            decrypt(filepath, &key);
             println!("Done!");
         }
         Args::LoadSchematic { filepath } => {
@@ -281,7 +277,7 @@ fn main() {
                             None => return,
                         };
 
-                        decrypt(&filepath, key);
+                        decrypt(filepath.clone(), key);
                         println!("Decrypted \'{}\'", filepath.display());
                     }
                     _ => println!("Unknown action"),
